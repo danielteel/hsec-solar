@@ -18,7 +18,9 @@ const uint8_t handshakeMagicBytes[]={13, 37};
 
 
 const char* deviceName = "Solar";
-const char* encroKey = "a4238895765ca8fa186819dc48ff95c29e233459693f8b3c5807655772a23fe2";
+const char* encroKey = "";
+const char* portalName = "HSEC Solar Setup";
+const char* handshakeMessage="Lights Off:void:0,Lights On:void:1";
 
 
 void setup(){
@@ -38,7 +40,7 @@ void setup(){
     wifiManager.setConnectTimeout(60);
     if ( digitalRead(15) == LOW ) {
         Serial.println("Entering setup mode...");
-        wifiManager.startConfigPortal("HSEC Solar Setup");
+        wifiManager.startConfigPortal(portalName);
         ESP.restart();
     }
 
@@ -46,7 +48,7 @@ void setup(){
 
     handshakeNumber=esp_random();
 
-    wifiManager.autoConnect("HSEC Solar Setup");
+    wifiManager.autoConnect(portalName);
 
     Serial.printf("Name %i:%s\n", strlen(deviceName), deviceName);
     Serial.printf("Encrokey %i:%s\n", strlen(encroKey), encroKey);
@@ -59,17 +61,15 @@ void setup(){
 }
 
 void onPacket(uint8_t* data, uint32_t dataLength){
-    if (data[0]==1){
-        Serial.println("recieved garage door press command");
-        digitalWrite(14, HIGH);
-        delay(250);
-        digitalWrite(14, LOW);
+    if (data[0]==0){
+        //turn lights off
+    }else if (data[1]==1){
+        //turn lights on
     }
 }
 
 void sendInitialHandshake(){
     uint32_t encryptedLength;
-    const char handshakeMessage[]="operate:void:1";
     uint8_t* encrypted=encrypt(handshakeNumber, (uint8_t*)handshakeMessage, strlen(handshakeMessage), encryptedLength, encroKey);
     if (encrypted){
         Messaging.write(handshakeMagicBytes, 2);
