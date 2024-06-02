@@ -26,9 +26,6 @@ const char* handshakeMessage="Lights Off:void:0,Lights On:void:1";
 void setup(){
     pinMode(14, OUTPUT);
     digitalWrite(14, LOW);
-    pinMode(15, INPUT_PULLUP);//enter config mode
-    digitalWrite(14, LOW);
-    delay(250);
 
     Serial.begin(115200);
     Serial.println("Initializing...");
@@ -63,8 +60,12 @@ void setup(){
 void onPacket(uint8_t* data, uint32_t dataLength){
     if (data[0]==0){
         //turn lights off
-    }else if (data[1]==1){
+        digitalWrite(14, LOW);
+        Serial.print("off");
+    }else if (data[0]==1){
         //turn lights on
+        digitalWrite(14, HIGH);
+        Serial.print("on");
     }
 }
 
