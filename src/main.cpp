@@ -1,11 +1,8 @@
 #include <Arduino.h>
-#include <WiFiManager.h>
 #include <WiFi.h>
 #include <Esp.h>
-#include <EEPROM.h>
 #include "camera.h"
 #include "encro.h"
-WiFiManager wifiManager;
 WiFiClient Client;
 WiFiClient Messaging;
 
@@ -16,11 +13,17 @@ uint32_t serverHandshakeNumber=0;
 const uint8_t packetMagicBytes[]={73, 31};
 const uint8_t handshakeMagicBytes[]={13, 37};
 
+const char* hostAddress="danteel.dedyn.io";
+const uint16_t hostPort = 4004;
+
 
 const char* deviceName = "Solar";
 const char* encroKey = "";
 const char* portalName = "HSEC Solar Setup";
 const char* handshakeMessage="Lights Off:void:0,Lights On:void:1";
+
+const char* WiFiSSID = "DnD";
+const char* WiFiPass = "";
 
 
 void setup(){
@@ -31,27 +34,15 @@ void setup(){
     Serial.println("Initializing...");
 
     WiFi.mode(WIFI_STA);
+    WiFi.begin(WiFiSSID, WiFiPass);
 
-
-    wifiManager.setConfigPortalTimeout(120);
-    wifiManager.setConnectTimeout(60);
-    if ( digitalRead(15) == LOW ) {
-        Serial.println("Entering setup mode...");
-        wifiManager.startConfigPortal(portalName);
-        ESP.restart();
-    }
-
-    Serial.println("Autoconnecting...");
 
     handshakeNumber=esp_random();
 
-    wifiManager.autoConnect(portalName);
 
     Serial.printf("Name %i:%s\n", strlen(deviceName), deviceName);
     Serial.printf("Encrokey %i:%s\n", strlen(encroKey), encroKey);
 
-
-    Serial.println("Auto connect returned...");
     cameraSetup();
     Serial.println("camera setup...");
 
@@ -245,29 +236,37 @@ void loop(){
 
     uint32_t currentTime = millis();
 
-    if (!Messaging.connected() && ((currentTime-lastConnectAttemptTime)>=2000 || currentTime<lastConnectAttemptTime)){ 
-        lastConnectAttemptTime=currentTime;
-        resetPacketStatus();
-        if (Messaging.connect("danteel.dedyn.io", 4004)){
-            sendInitialHandshake();
+    if (WiFi.status()!=WL_CONNECTED){
+        if (WiFi.status()==WL_CONNECT_FAILED){
+            WiFi.disconnect();
+            WiFi.begin(WiFiSSID, WiFiPass);
         }
-    }else if (Messaging.connected()){
-        while (Messaging.connected() && Messaging.available()){
-            byte message;
-            Messaging.readBytes(&message, 1);
-            dataRecieved(message);
-        }
-
-        if ((currentTime-lastCaptureTime)>=2000 || currentTime<lastCaptureTime){
-            CAMERA_CAPTURE capture;
-
-            if (cameraCapture(capture)){
-                if (Messaging.connected()) sendPacket(capture.jpgBuff, capture.jpgBuffLen);
-                cameraCaptureCleanup(capture);
-            }else{
-                Serial.println("failed to capture ");
+        delay(500);
+    }else{
+        if (!Messaging.connected() && ((currentTime-lastConnectAttemptTime)>=2000 || currentTime<lastConnectAttemptTime)){ 
+            lastConnectAttemptTime=currentTime;
+            resetPacketStatus();
+            if (Messaging.connect(hostAddress, hostPort)){
+                sendInitialHandshake();
             }
-            lastCaptureTime=currentTime;
+        }else if (Messaging.connected()){
+            while (Messaging.connected() && Messaging.available()){
+                byte message;
+                Messaging.readBytes(&message, 1);
+                dataRecieved(message);
+            }
+
+            if ((currentTime-lastCaptureTime)>=2000 || currentTime<lastCaptureTime){
+                CAMERA_CAPTURE capture;
+
+                if (cameraCapture(capture)){
+                    if (Messaging.connected()) sendPacket(capture.jpgBuff, capture.jpgBuffLen);
+                    cameraCaptureCleanup(capture);
+                }else{
+                    Serial.println("failed to capture ");
+                }
+                lastCaptureTime=currentTime;
+            }
         }
     }
 }
