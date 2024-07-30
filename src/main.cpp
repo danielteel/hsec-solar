@@ -13,6 +13,8 @@ uint32_t serverHandshakeNumber=0;
 const uint8_t packetMagicBytes[]={73, 31};
 const uint8_t handshakeMagicBytes[]={13, 37};
 
+const uint8_t requestNightStatus[]={'i','n'};
+
 const char* hostAddress="danteel.dedyn.io";
 const uint16_t hostPort = 4004;
 
@@ -66,7 +68,7 @@ void onPacket(uint8_t* data, uint32_t dataLength){
         AutoMode=false;
     }else if (data[0]==2){
         AutoMode=true;
-        sendPacket("in", 2);//Request if lights should be on
+        if (Messaging.connected()) sendPacket(requestNightStatus, 2);
         digitalWrite(14, LOW);
     }else if (data[0]=='n' && data[1]=='f'){
         if (AutoMode){ 
@@ -101,6 +103,8 @@ void sendPacket(const void* data, uint32_t dataLength){
         Messaging.write(packetMagicBytes, 2);
         Messaging.write((uint8_t*)&encryptedLength, 4);
         Messaging.write(encrypted, encryptedLength);
+        Serial.print("Sent message with handshake ");
+        Serial.println(handshakeNumber);
         delete[] encrypted;
         handshakeNumber++;
     }else{
@@ -160,6 +164,7 @@ void dataRecieved(uint8_t byte){
             }else{
                 if (byte!=packetMagicBytes[0]){
                     onError("magic1 byte is incorrect");
+                    Serial.print(byte);
                     return;
                 } 
             }
@@ -263,7 +268,7 @@ void loop(){
         }
         delay(500);
     }else{
-        if (!Messaging.connected() && ((currentTime-lastConnectAttemptTime)>=2000 || currentTime<lastConnectAttemptTime)){ 
+        if (!Messaging.connected() && ((currentTime-lastConnectAttemptTime)>=5000 || currentTime<lastConnectAttemptTime)){ 
             lastConnectAttemptTime=currentTime;
             resetPacketStatus();
             if (Messaging.connect(hostAddress, hostPort)){
@@ -288,8 +293,9 @@ void loop(){
                 lastCaptureTime=currentTime;
             }
 
-            if ((currentTime-lastAutoModeCheck)>=30000 || currentTime<lastAutoModeCheck){
-                sendPacket("in", 2);
+            if (((currentTime-lastAutoModeCheck)>=30000 || currentTime<lastAutoModeCheck) && AutoMode){
+                lastAutoModeCheck=currentTime;
+                if (Messaging.connected()) sendPacket(requestNightStatus, 2);
             }
 
         }
