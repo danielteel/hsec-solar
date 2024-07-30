@@ -17,13 +17,16 @@ const char* hostAddress="danteel.dedyn.io";
 const uint16_t hostPort = 4004;
 
 
+const char* WiFiSSID = "DnD";
+const char* WiFiPass = "";
+
 const char* deviceName = "Solar";
 const char* encroKey = "";
 const char* portalName = "HSEC Solar Setup";
-const char* handshakeMessage="Lights Off:void:0,Lights On:void:1";
+const char* handshakeMessage="Lights Off:void:0,Lights On:void:1,Auto:void:2";
 
-const char* WiFiSSID = "DnD";
-const char* WiFiPass = "";
+
+bool AutoMode=false;
 
 
 void setup(){
@@ -48,15 +51,31 @@ void setup(){
 
 }
 
+void sendPacket(const void* data, uint32_t dataLength);
+
 void onPacket(uint8_t* data, uint32_t dataLength){
     if (data[0]==0){
         //turn lights off
         digitalWrite(14, LOW);
         Serial.print("off");
+        AutoMode=false;
     }else if (data[0]==1){
         //turn lights on
         digitalWrite(14, HIGH);
         Serial.print("on");
+        AutoMode=false;
+    }else if (data[0]==2){
+        AutoMode=true;
+        sendPacket("in", 2);//Request if lights should be on
+        digitalWrite(14, LOW);
+    }else if (data[0]=='n' && data[1]=='f'){
+        if (AutoMode){ 
+            digitalWrite(14, LOW);
+        }
+    }else if (data[0]=='n' && data[1]=='t'){
+        if (AutoMode){
+            digitalWrite(14, HIGH);
+        }
     }
 }
 
@@ -233,6 +252,7 @@ void dataRecieved(uint8_t byte){
 void loop(){
     static uint32_t lastCaptureTime=0;
     static uint32_t lastConnectAttemptTime=0;
+    static uint32_t lastAutoModeCheck=0;
 
     uint32_t currentTime = millis();
 
@@ -267,6 +287,11 @@ void loop(){
                 }
                 lastCaptureTime=currentTime;
             }
+
+            if ((currentTime-lastAutoModeCheck)>=30000 || currentTime<lastAutoModeCheck){
+                sendPacket("in", 2);
+            }
+
         }
     }
 }
